@@ -1,75 +1,67 @@
+import random
 import pandas as pd
-import numpy as np
 
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report
+# constnatns
+NUM_SAMPLES = 8000   # how much data to generate
+NUM_QUBITS = 5       # q0 to q4
 
 
-# =========================================================
-# LOAD DATA
-# =========================================================
-df = pd.read_csv("quantum_noise_strong.csv")
+# noise free data
+def create_state(label):
+    # repetition encoding: all 1s or all 0s
+    if label == 1:
+        return [1, 1, 1, 1, 1]
+    else:
+        return [0, 0, 0, 0, 0]
 
-print("\nSample data:")
+
+# addingn noise on quibits
+def add_noise(bits):
+    noisy = bits.copy()
+
+    # different noise level for each qubit
+    noise_probs = [0.10, 0.35, 0.20, 0.35, 0.10]
+
+    for i in range(NUM_QUBITS):
+
+        # random bit flip 
+        if random.random() < noise_probs[i]:
+            noisy[i] = 1 - noisy[i]
+
+    # correlated noise (neighbor qubits affect each other)
+    for i in range(NUM_QUBITS - 1):
+        if random.random() < 0.25:
+            noisy[i + 1] = noisy[i]
+
+    # random burst error (rare big disturbance)
+    if random.random() < 0.05:
+        idx = random.randint(0, 4)
+        noisy[idx] = random.choice([0, 1])
+
+    return noisy
+
+
+# full data set generation
+data = []
+
+for _ in range(NUM_SAMPLES):
+
+    # random label 
+    label = random.randint(0, 1)
+
+    # create clean quantum state
+    clean = create_state(label)
+
+    # add noise
+    noisy = add_noise(clean)
+
+   
+    data.append(noisy + [label])
+
+
+# save :)
+df = pd.DataFrame(data, columns=["q0", "q1", "q2", "q3", "q4", "label"])
+df.to_csv("quantum_noise_data.csv", index=False)
+
+print("data is safe")
 print(df.head())
-
-
-# =========================================================
-# SPLIT FEATURES / LABELS
-# =========================================================
-X = df.drop("label", axis=1)
-y = df["label"]
-
-
-# =========================================================
-# TRAIN / TEST SPLIT
-# =========================================================
-X_train, X_test, y_train, y_test = train_test_split(
-    X,
-    y,
-    test_size=0.2,
-    random_state=42,
-    stratify=y
-)
-
-
-# =========================================================
-# MODEL (ML DECODER)
-# =========================================================
-model = RandomForestClassifier(
-    n_estimators=200,
-    max_depth=None,
-    random_state=42
-)
-
-model.fit(X_train, y_train)
-
-
-# =========================================================
-# PREDICTION
-# =========================================================
-y_pred = model.predict(X_test)
-
-
-# =========================================================
-# RESULTS
-# =========================================================
-acc = accuracy_score(y_test, y_pred)
-
-print("\n==============================")
-print("ML DECODER RESULTS (UPDATED)")
-print("==============================")
-print(f"Accuracy: {acc:.4f}\n")
-
-print(classification_report(y_test, y_pred))
-
-
-# =========================================================
-# FEATURE IMPORTANCE (IMPORTANT FOR SCIENCE FAIR)
-# =========================================================
-importances = model.feature_importances_
-
-print("\nFeature Importance:")
-for i, v in enumerate(importances):
-    print(f"q{i}: {v:.4f}")
